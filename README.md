@@ -1,55 +1,47 @@
-# Sybase ASE HammerDB-Style Workload Generator
+# Sybase ASE Connector and Load Testing Tools
 
-Production-ready workload generator for Sybase ASE that simulates TPC-C-like benchmark testing on the pubs2 database.
+This repository contains a Fivetran Connector SDK implementation for Sybase ASE and a suite of load testing tools for benchmarking and validating database performance against the pubs2 database.
 
-## Quick Start
+## Repository Contents
 
-### Prerequisites
+| File | Description |
+|------|-------------|
+| `connector.py` | Fivetran Connector SDK implementation |
+| `sybase_ase_hammerdb_workload.py` | HammerDB-style load test with mixed read/write transactions |
+| `sybase_ase_hammerdb_workload_readonly.py` | Read-only load test, safe for production use |
+| `configuration.json` | Database connection configuration |
+| `requirements.txt` | Python dependencies |
+| `drivers/installation.sh` | FreeTDS driver installation script (Linux) |
+
+---
+
+## Prerequisites
+
+### Python Dependencies
+
 ```bash
-pip install pyodbc
+pip install pyodbc fivetran-connector-sdk
 ```
 
-### Run Test
+### FreeTDS Driver
+
+FreeTDS is required for all connectivity to Sybase ASE.
+
 ```bash
-# Default test (10 workers, 60 seconds)
-python sybase_ase_hammerdb_workload.py --config configuration.json
+# macOS
+brew install freetds
 
-# Custom test
-python sybase_ase_hammerdb_workload.py --config configuration.json --workers 20 --duration 300
-
-# Schema discovery only
-python sybase_ase_hammerdb_workload.py --config configuration.json --discover-only
+# Linux (or use the included script)
+bash drivers/installation.sh
 ```
 
-## Features
+### Configuration
 
-- **7 Transaction Types**: Mix of OLTP writes and analytical reads
-- **Concurrent Workers**: Multi-threaded load simulation (configurable)
-- **Real Transactions**: Inserts, updates, complex joins, and aggregations
-- **Performance Metrics**: TPS, latency, error rates, success rates
-- **Schema Discovery**: Automatically maps pubs2 database structure
-- **Production Ready**: Proper error handling, connection pooling, commit/rollback
+All tools share the same `configuration.json`:
 
-## Transaction Mix
-
-| Transaction Type | Weight | Description | Type |
-|-----------------|--------|-------------|------|
-| New Sale | 45% | Insert orders, update inventory | Write |
-| Payment | 15% | Update royalty schedules | Write |
-| Order Status | 15% | Query order history | Read |
-| Delivery | 10% | Update order quantities | Write |
-| Stock Level | 10% | Check inventory levels | Read |
-| Author Lookup | 3% | Complex joins | Read |
-| Publisher Report | 2% | Aggregation queries | Read |
-
-## Configuration
-
-Edit `configuration.json`:
 ```json
 {
-  "name": "sybase_ase",
-  "type": "sybase_ase",
-  "server": "35.223.102.32",
+  "server": "your_server_address",
   "port": "5000",
   "database": "pubs2",
   "user_id": "sa",
@@ -57,132 +49,264 @@ Edit `configuration.json`:
 }
 ```
 
-## Command Line Options
+---
+
+## Fivetran Connector (connector.py)
+
+A production-ready connector built with the Fivetran Connector SDK that syncs data from Sybase ASE to any Fivetran-supported destination.
+
+### How It Works
+
+The connector connects to Sybase ASE via FreeTDS and pyodbc, queries the `sales` table incrementally using a `date` watermark stored in state, and upserts rows to the destination in batches of 1000.
+
+On each sync:
+1. Reads `last_created` from state (defaults to `1970-01-01T00:00:00` on first run)
+2. Executes `SELECT * FROM sales WHERE date > '<last_created>' ORDER BY date`
+3. Upserts each row to the destination `sales` table
+4. Checkpoints state after each batch so syncs can resume safely if interrupted
+
+### Schema
+
+The connector delivers a single `sales` table:
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `stor_id` | STRING | Part of composite primary key |
+| `ord_num` | STRING | Part of composite primary key |
+| `date` | NAIVE_DATETIME | Used as the incremental watermark |
+
+### Key Functions
+
+| Function | Description |
+|----------|-------------|
+| `validate_configuration(configuration)` | Checks all required fields are present before connecting |
+| `schema(configuration)` | Returns the table schema definition for Fivetran |
+| `create_sybase_connection(configuration)` | Establishes a pyodbc connection via FreeTDS |
+| `fetch_and_upsert(cursor, query, table_name, state, batch_size)` | Fetches rows and emits upsert operations |
+| `update(configuration, state)` | Entry point called by Fivetran on each sync |
+| `close_sybase_connection(connection, cursor)` | Closes cursor and connection cleanly |
+
+### Local Testing
+
+```bash
+# Debug the connector locally using the Fivetran SDK debug runner
+python connector.py
+```
+
+The connector reads `configuration.json` from `/configuration.json` when run directly. Update the path in the `__main__` block if needed.
+
+### Extending the Connector
+
+To sync additional tables, add entries to the list returned by `schema()` and add corresponding queries in `update()`. Follow the same incremental pattern using a date or sequence column as the watermark.
+
+---
+
+## HammerDB-Style Workload (sybase_ase_hammerdb_workload.py)
+
+A TPC-C-inspired load testing tool that generates concurrent mixed read/write transactions against the pubs2 database. Designed to measure throughput, latency, and concurrency behaviour under realistic OLTP conditions.
+
+### Transaction Mix
+
+| Transaction | Weight | Type | Tables Touched |
+|-------------|--------|------|----------------|
+| New Sale | 45% | Write | sales, salesdetail, titles |
+| Payment | 15% | Write | roysched |
+| Order Status | 15% | Read | sales, stores, salesdetail, titles |
+| Delivery | 10% | Write | salesdetail |
+| Stock Level | 10% | Read | titles, salesdetail |
+| Author Lookup | 3% | Read | authors, titleauthor, titles |
+| Publisher Report | 2% | Read | publishers, titles |
+
+### Usage
+
+```bash
+# Run with defaults (10 workers, 60 seconds)
+python sybase_ase_hammerdb_workload.py --config configuration.json
+
+# Custom workers and duration
+python sybase_ase_hammerdb_workload.py --config configuration.json --workers 20 --duration 300
+
+# Discover schema only, no load test
+python sybase_ase_hammerdb_workload.py --config configuration.json --discover-only
+
+# Verbose output for debugging
+python sybase_ase_hammerdb_workload.py --config configuration.json --verbose
+```
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--config` | required | Path to configuration.json |
+| `--workers` | 10 | Number of concurrent worker threads |
+| `--duration` | 60 | Test duration in seconds |
+| `--discover-only` | false | Print schema and exit without running the test |
+| `--verbose` | false | Print per-transaction errors and worker events |
+
+### Sample Output
 
 ```
---config PATH         Path to configuration.json (required)
---workers N           Number of concurrent workers (default: 10)
---duration N          Test duration in seconds (default: 60)
---discover-only       Only discover schema and exit
---verbose             Enable verbose output
-```
+======================================================================
+  HAMMERDB-STYLE WORKLOAD TEST
+======================================================================
+  Workers:  10
+  Duration: 60s
+======================================================================
 
-## Understanding Output
-
-```
 ======================================================================
   WORKLOAD RESULTS
 ======================================================================
-  Total Time:     60.12s          # Actual elapsed time
-  Total TX:       3,245           # Total transactions executed
-  Total Errors:   12              # Failed transactions
-  Overall TPS:    53.98           # Transactions per second
+  Total Time:     60.12s
+  Total TX:       3,245
+  Total Errors:   12
+  Overall TPS:    53.98
 
 ----------------------------------------------------------------------
-  Transaction Type        Count   Errors    Avg(ms)        TPS
+  Transaction Type     Count   Errors    Avg(ms)        TPS
 ----------------------------------------------------------------------
-  new_sale                1,461        2     234.50      24.31
-  payment                   487        0     206.12       8.10
-  order_status              486        0      37.45       8.08
-  ...
+  new_sale             1,461        2     234.50      24.31
+  payment                487        0     206.12       8.10
+  order_status           486        0      37.45       8.08
+  delivery               324        0      74.23       5.39
+  stock_level            325        8     366.89       5.41
+  author_lookup           97        0     147.67       1.61
+  publisher_report        65        2     221.34       1.08
+======================================================================
 ```
+
+### Architecture
+
+Each worker thread maintains its own database connection. Transactions are selected randomly according to the weighted mix. Results are recorded into a thread-safe `WorkloadStats` collector and printed as a summary at the end.
+
+---
+
+## Read-Only Workload (sybase_ase_hammerdb_workload_readonly.py)
+
+An alternative load test that runs SELECT-only queries. Use this when write operations are not appropriate, such as testing against a production database or when the transaction log is constrained.
+
+### Transaction Mix
+
+| Transaction | Weight | Description |
+|-------------|--------|-------------|
+| Order Status | 25% | Multi-table join across sales, stores, salesdetail, titles |
+| Stock Level | 20% | Inventory aggregation on titles and salesdetail |
+| Author Lookup | 20% | Join across authors, titleauthor, titles |
+| Publisher Report | 15% | GROUP BY aggregation on publishers and titles |
+| Sales Analysis | 10% | Store-level sales summary |
+| Title Search | 5% | Filter titles by type |
+| Royalty Report | 5% | Estimated royalty calculation per author |
+
+### Usage
+
+```bash
+# Run with defaults (10 workers, 60 seconds)
+python sybase_ase_hammerdb_workload_readonly.py --config configuration.json
+
+# Custom workers and duration
+python sybase_ase_hammerdb_workload_readonly.py --config configuration.json --workers 20 --duration 300
+
+# Verbose output
+python sybase_ase_hammerdb_workload_readonly.py --config configuration.json --verbose
+```
+
+### Key Difference from Main Workload
+
+Connections are opened with `autocommit=True`. No `BEGIN`/`COMMIT`/`ROLLBACK` is issued, so there is no transaction log growth and no risk of lock contention from writes.
+
+---
 
 ## Performance Expectations
 
-| Workers | Expected TPS | Expected Errors |
-|---------|-------------|-----------------|
-| 1-5     | 10-30       | < 5% |
-| 10      | 30-60       | < 10% |
-| 20      | 50-120      | < 15% |
-| 50+     | 100-300     | < 20% |
+Results vary significantly based on network proximity to the Sybase server. The figures below assume a local or low-latency network connection.
 
-Note: Actual performance depends on network, hardware, and Sybase configuration.
+### Mixed Workload
+
+| Workers | Expected TPS | Expected Error Rate |
+|---------|-------------|---------------------|
+| 5 | 10-30 | < 5% |
+| 10 | 30-60 | < 10% |
+| 20 | 50-120 | < 15% |
+| 50+ | 100-300 | < 20% |
+
+### Read-Only Workload
+
+| Workers | Expected TPS | Expected Error Rate |
+|---------|-------------|---------------------|
+| 10 | 50-100 | < 5% |
+| 20 | 100-200 | < 5% |
+| 50+ | 200-500 | < 10% |
+
+---
 
 ## Troubleshooting
 
-### High Error Rate (> 20%)
-```bash
-# Reduce workers
-python sybase_ase_hammerdb_workload.py --config configuration.json --workers 3
-
-# Check Sybase logs
-tail -f $SYBASE/$SYBASE_ASE/install/errorlog
-```
-
-### Low TPS (< 10)
-- Check network latency to Sybase server
-- Run from same network as Sybase server
-- Add indexes to pubs2 tables
-- Monitor Sybase performance with sp_sysmon
-
 ### Connection Failures
+
 ```bash
-# Test basic connectivity
-tsql -S <server> -p <port> -U sa -P <password>
+# Verify basic connectivity
+tsql -S your_server -p 5000 -U sa -P your_password
 
 # Enable FreeTDS debug logging
 export TDSDUMP=/tmp/freetds.log
 python sybase_ase_hammerdb_workload.py --config configuration.json
 cat /tmp/freetds.log
+
+# Check FreeTDS ODBC registration
+odbcinst -q -d
 ```
 
-## Use Cases
+### High Error Rate
 
-### 1. Connector Performance Testing
+Reduce the number of workers to lower lock contention:
+
 ```bash
-python sybase_ase_hammerdb_workload.py --config configuration.json --workers 20 --duration 300
+python sybase_ase_hammerdb_workload.py --config configuration.json --workers 3
 ```
 
-### 2. Baseline Performance
+Switch to the read-only workload to confirm queries work in isolation:
+
 ```bash
-# Before upgrade
-python sybase_ase_hammerdb_workload.py --config configuration.json > baseline.txt
-
-# After upgrade
-python sybase_ase_hammerdb_workload.py --config configuration.json > after_upgrade.txt
-
-# Compare
-diff baseline.txt after_upgrade.txt
+python sybase_ase_hammerdb_workload_readonly.py --config configuration.json --workers 10
 ```
 
-### 3. Stress Testing
-```bash
-for workers in 10 20 50 100; do
-  echo "Testing with $workers workers..."
-  python sybase_ase_hammerdb_workload.py --config configuration.json --workers $workers --duration 60
-done
+Check Sybase for blocking or errors:
+
+```sql
+sp_who
+sp_lock
 ```
 
-## Files
+### Transaction Log Full
 
-- **sybase_ase_hammerdb_workload.py** - Main workload script (read/write mix)
-- **sybase_ase_hammerdb_workload_readonly.py** - Read-only workload alternative
-- **connector.py** - Basic connection utility
-- **configuration.json** - Connection configuration
-- **README.md** - This file
-- **INDEX.md** - Documentation navigation
-- **QUICK_REFERENCE.md** - Quick command reference
-- **README_HAMMERDB_WORKLOAD.md** - Detailed documentation
-- **WORKLOAD_RESULTS.md** - Test results and analysis
+The mixed workload generates writes that consume transaction log space. If you see `Can't allocate space for object 'syslogs'`, truncate the log:
 
-## Best Practices
+```sql
+USE pubs2
+DUMP TRANSACTION pubs2 WITH TRUNCATE_ONLY
+```
 
-1. Start with 5-10 workers, then scale up
-2. Monitor Sybase with sp_sysmon or sp_who during tests
-3. Reset pubs2 database between major test runs
-4. Run from same region as Sybase server for best results
-5. Use 5-10 minute tests for accurate metrics
-6. Document results for comparison over time
+Alternatively, switch to the read-only workload for the duration of testing.
 
-## Support
+### Low TPS
 
-For issues or questions:
-- Check Sybase ASE logs: `$SYBASE/$SYBASE_ASE/install/errorlog`
-- Check FreeTDS logs: `export TDSDUMP=/tmp/freetds.log`
-- Review pubs2 schema: `sp_help <table_name>`
-- See detailed documentation in README_HAMMERDB_WORKLOAD.md
+- Run the workload from the same network as the Sybase server to eliminate round-trip latency
+- Check server resource usage with `sp_sysmon '00:01:00'`
+- Verify indexes exist on frequently queried columns
+
+---
+
+## Additional Documentation
+
+| File | Contents |
+|------|----------|
+| `QUICK_REFERENCE.md` | Command cheat sheet and common troubleshooting steps |
+| `README_HAMMERDB_WORKLOAD.md` | Detailed workload documentation including architecture and tuning |
+| `WORKLOAD_RESULTS.md` | Recorded test results and analysis from the pubs2 test environment |
+| `INDEX.md` | Documentation navigation guide |
+
+---
 
 ## Version
 
-Version: 1.0  
+Version: 1.0
 Last Updated: 2026-03-11

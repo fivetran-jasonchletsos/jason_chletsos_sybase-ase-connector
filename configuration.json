@@ -1,0 +1,7 @@
+{
+  "server": "35.223.102.32",
+  "port": "5000",
+  "database": "pubs2",
+  "user_id": "sa",
+  "password": "Sybase001"
+}

@@ -1,6 +1,6 @@
 # Sybase ASE HammerDB Workload - Documentation Index
 
-## 📦 Files Included
+## Files Included
 
 ### Core Files
 1. **sybase_ase_hammerdb_workload.py** (19 KB)
@@ -13,7 +13,7 @@
    - Server, port, credentials
 
 ### Documentation
-3. **QUICK_REFERENCE.md** (5.2 KB) ⭐ **START HERE**
+3. **QUICK_REFERENCE.md** (5.2 KB) **START HERE**
    - Quick commands and examples
    - Common troubleshooting
    - Performance expectations
@@ -36,7 +36,7 @@
 
 ---
 
-## 🚀 Quick Start (3 Steps)
+## Quick Start (3 Steps)
 
 ### Step 1: Install Dependencies
 ```bash
@@ -74,7 +74,7 @@ python sybase_ase_hammerdb_workload.py --config configuration.json
 
 ---
 
-## 📖 Documentation Guide
+## Documentation Guide
 
 ### For First-Time Users
 1. Read **QUICK_REFERENCE.md** (5 min)
@@ -95,7 +95,7 @@ python sybase_ase_hammerdb_workload.py --config configuration.json
 
 ---
 
-## 🎯 Common Use Cases
+## Common Use Cases
 
 ### Use Case 1: Validate Connector Performance
 **Goal:** Ensure Sybase ASE connector can handle production load
@@ -167,7 +167,7 @@ cat /tmp/freetds.log
 
 ---
 
-## 📊 Understanding Results
+## Understanding Results
 
 ### Key Metrics
 
@@ -182,23 +182,23 @@ cat /tmp/freetds.log
 ```
 Total Time:     60.12s
 Total TX:       3,245
-Total Errors:   12              ← 0.4% error rate ✅
-Overall TPS:    53.98           ← Good throughput ✅
+Total Errors:   12              ← 0.4% error rate (Good)
+Overall TPS:    53.98           ← Good throughput
 ```
 
 ### Sample Problem Result
 ```
 Total Time:     64.64s
 Total TX:       163
-Total Errors:   110             ← 67.5% error rate ⚠️
-Overall TPS:    2.52            ← Low throughput ⚠️
+Total Errors:   110             ← 67.5% error rate (Warning)
+Overall TPS:    2.52            ← Low throughput (Warning)
 ```
 
 **Action:** See WORKLOAD_RESULTS.md → Analysis → Issues Identified
 
 ---
 
-## 🔧 Customization
+## Customization
 
 ### Adjust Worker Count
 ```bash
@@ -236,7 +236,7 @@ transaction_mix = {
 
 ---
 
-## 🐛 Troubleshooting Quick Links
+## Troubleshooting Quick Links
 
 | Issue | Solution | Documentation |
 |-------|----------|---------------|
@@ -247,22 +247,22 @@ transaction_mix = {
 
 ---
 
-## 📚 Full Documentation Structure
+## Full Documentation Structure
 
 ```
-📁 Sybase ASE HammerDB Workload
+Sybase ASE HammerDB Workload
 │
-├── 📄 INDEX.md (this file)
+├── INDEX.md (this file)
 │   └── Overview and navigation
 │
-├── 📄 QUICK_REFERENCE.md ⭐ START HERE
+├── QUICK_REFERENCE.md (START HERE)
 │   ├── Installation
 │   ├── Basic usage
 │   ├── Command options
 │   ├── Troubleshooting
 │   └── Common commands
 │
-├── 📄 README_HAMMERDB_WORKLOAD.md
+├── README_HAMMERDB_WORKLOAD.md
 │   ├── Overview
 │   ├── Transaction types
 │   ├── Architecture
@@ -271,23 +271,23 @@ transaction_mix = {
 │   ├── Best practices
 │   └── Contributing
 │
-├── 📄 WORKLOAD_RESULTS.md
+├── WORKLOAD_RESULTS.md
 │   ├── Latest test results
 │   ├── Performance analysis
 │   ├── Issues identified
 │   ├── Recommendations
 │   └── Next steps
 │
-├── 🐍 sybase_ase_hammerdb_workload.py
+├── sybase_ase_hammerdb_workload.py
 │   └── Main workload script
 │
-└── ⚙️ configuration.json
+└── configuration.json
     └── Connection configuration
 ```
 
 ---
 
-## 🎓 Learning Path
+## Learning Path
 
 ### Beginner (30 minutes)
 1. Read QUICK_REFERENCE.md
@@ -308,7 +308,7 @@ transaction_mix = {
 
 ---
 
-## 📞 Support Resources
+## Support Resources
 
 ### Documentation
 - **Quick help:** QUICK_REFERENCE.md
@@ -342,7 +342,7 @@ sp_sysmon '00:01:00'
 
 ---
 
-## ✅ Checklist for Sharing with Colleagues
+## Checklist for Sharing with Colleagues
 
 - [ ] All files present (5 files)
 - [ ] configuration.json has correct credentials
@@ -354,7 +354,7 @@ sp_sysmon '00:01:00'
 
 ---
 
-## 📝 Version History
+## Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
@@ -366,7 +366,7 @@ sp_sysmon '00:01:00'
 
 ---
 
-## 🚀 Next Steps
+## Next Steps
 
 1. **Immediate:** Run basic test to validate setup
    ```bash

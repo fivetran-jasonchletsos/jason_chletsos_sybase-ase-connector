@@ -6,12 +6,12 @@ This workload generator simulates a **TPC-C-like benchmark** for the classic **p
 
 ## Features
 
--  **7 Transaction Types** - Mix of OLTP writes and analytical reads
--  **Concurrent Workers** - Multi-threaded load simulation (configurable)
--  **Real Transactions** - Inserts, updates, complex joins, and aggregations
--  **Performance Metrics** - TPS, latency, error rates, success rates
--  **Schema Discovery** - Automatically maps pubs2 database structure
--  **Production Ready** - Proper error handling, connection pooling, commit/rollback
+- **7 Transaction Types** - Mix of OLTP writes and analytical reads
+- **Concurrent Workers** - Multi-threaded load simulation (configurable)
+- **Real Transactions** - Inserts, updates, complex joins, and aggregations
+- **Performance Metrics** - TPS, latency, error rates, success rates
+- **Schema Discovery** - Automatically maps pubs2 database structure
+- **Production Ready** - Proper error handling, connection pooling, commit/rollback
 
 ---
 
@@ -69,10 +69,10 @@ python sybase_ase_hammerdb_workload.py --config configuration.json --discover-on
 ======================================================================
   SCHEMA DISCOVERY
 ======================================================================
-  📋 authors: au_id, au_lname, au_fname, phone, address, city, state, country, postalcode
-  📋 titles: title_id, title, type, pub_id, price, advance, total_sales, notes, pubdate, contract
-  📋 sales: stor_id, ord_num, date
-  📋 salesdetail: stor_id, ord_num, title_id, qty, discount
+  authors: au_id, au_lname, au_fname, phone, address, city, state, country, postalcode
+  titles: title_id, title, type, pub_id, price, advance, total_sales, notes, pubdate, contract
+  sales: stor_id, ord_num, date
+  salesdetail: stor_id, ord_num, title_id, qty, discount
   ...
 ```
 

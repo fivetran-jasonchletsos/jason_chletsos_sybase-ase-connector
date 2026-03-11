@@ -38,22 +38,22 @@ python sybase_ase_hammerdb_workload.py --config configuration.json --workers 20 
 |-----------------|-------|--------|--------------|---------------|-----|
 | New Sale | 71 | 65 | 8.5% | 5,875.90 | 1.10 |
 | Order Status | 25 | 25 | 0% | 41.15 | 0.39 |
-| Payment | 20 | 0 | ✅ 100% | 246.09 | 0.31 |
+| Payment | 20 | 0 | 100% | 246.09 | 0.31 |
 | Stock Level | 22 | 6 | 72.7% | 8,887.48 | 0.34 |
 | Delivery | 14 | 14 | 0% | 78.40 | 0.22 |
-| Author Lookup | 10 | 0 | ✅ 100% | 347.01 | 0.15 |
-| Publisher Report | 1 | 0 | ✅ 100% | 37.05 | 0.02 |
+| Author Lookup | 10 | 0 | 100% | 347.01 | 0.15 |
+| Publisher Report | 1 | 0 | 100% | 37.05 | 0.02 |
 
 ---
 
 ## Analysis
 
-### ✅ Working Transactions (100% Success Rate)
+### Working Transactions (100% Success Rate)
 1. **Payment** - Royalty updates working perfectly
 2. **Author Lookup** - Complex joins performing well
 3. **Publisher Report** - Aggregations working
 
-### ⚠️ Issues Identified
+### Issues Identified
 
 #### 1. High Error Rate on Writes (67.5% overall)
 **Affected Transactions:**
@@ -223,13 +223,13 @@ cat /tmp/freetds.log
 
 The workload generator is **functionally complete** and ready for testing. However, current results show:
 
-✅ **Strengths:**
+**Strengths:**
 - Read-only transactions (Author Lookup, Payment, Publisher Report) work perfectly
 - Schema discovery working
 - Multi-threaded architecture functional
 - Proper error handling and metrics
 
-⚠️ **Areas for Improvement:**
+**Areas for Improvement:**
 - High error rate on write transactions (likely schema/constraint issues)
 - Slow response times (likely network latency)
 - Need to tune for production use

@@ -7,11 +7,32 @@ This workload generator simulates a **TPC-C-like benchmark** for the classic **p
 ## Features
 
 - **7 Transaction Types** - Mix of OLTP writes and analytical reads
-- **Concurrent Workers** - Multi-threaded load simulation (configurable)
+- **Multiprocessing Architecture** - True parallel execution (bypasses Python GIL)
+- **Warm-up Period** - Configurable cache warming phase before measurement
+- **Pre-loaded IDs** - Eliminates `ORDER BY NEWID()` full table scans
 - **Real Transactions** - Inserts, updates, complex joins, and aggregations
 - **Performance Metrics** - TPS, latency, error rates, success rates
 - **Schema Discovery** - Automatically maps pubs2 database structure
 - **Production Ready** - Proper error handling, connection pooling, commit/rollback
+
+## Version 2.0 Improvements
+
+Based on production feedback, v2.0 addresses three critical performance bottlenecks:
+
+### 1. **Multiprocessing vs Threading**
+- **Problem**: Python's GIL (Global Interpreter Lock) limits true parallelism with threads
+- **Solution**: Switched to `multiprocessing` for genuine OS-level parallelism
+- **Impact**: Each worker is a separate process with its own Python interpreter
+
+### 2. **Warm-up Period**
+- **Problem**: Initial transactions measure disk I/O and cache loading, not steady-state performance
+- **Solution**: Added configurable warm-up period (default 30s) where transactions run but aren't measured
+- **Impact**: Metrics reflect true transaction throughput after caches are warm
+
+### 3. **Pre-loaded ID Lists**
+- **Problem**: `ORDER BY NEWID()` causes full table scans on every transaction
+- **Solution**: Pre-load all valid IDs at startup, use `random.choice()` in Python
+- **Impact**: Eliminates table scans, tests actual transaction logic instead of scan performance
 
 ---
 
@@ -83,14 +104,19 @@ python sybase_ase_hammerdb_workload.py --config configuration.json
 ```
 
 **Defaults:**
-- Workers: 10 concurrent threads
-- Duration: 60 seconds
+- Workers: 10 concurrent processes
+- Warmup: 30 seconds (cache warming, not measured)
+- Duration: 60 seconds (measured)
+- Total runtime: 90 seconds
 
 ### 3. Run with Custom Settings
 
 ```bash
-# 20 workers for 5 minutes
-python sybase_ase_hammerdb_workload.py --config configuration.json --workers 20 --duration 300
+# 20 workers for 5 minutes with 60s warmup
+python sybase_ase_hammerdb_workload.py --config configuration.json --workers 20 --duration 300 --warmup 60
+
+# Skip warmup for quick tests (not recommended for benchmarking)
+python sybase_ase_hammerdb_workload.py --config configuration.json --warmup 0
 
 # Enable verbose logging
 python sybase_ase_hammerdb_workload.py --config configuration.json --verbose
@@ -102,30 +128,60 @@ python sybase_ase_hammerdb_workload.py --config configuration.json --verbose
 
 ```
 ======================================================================
-  HAMMERDB-STYLE WORKLOAD TEST
+  Sybase ASE HammerDB-Style Workload Generator v2.0
 ======================================================================
-  Workers:  10
-  Duration: 60s
+  Server:   35.223.102.32:5000
+  Database: pubs2
+  User:     sa
+
+======================================================================
+  SCHEMA DISCOVERY
+======================================================================
+  📋 authors: au_id, au_lname, au_fname, ...
+  📋 titles: title_id, title, type, pub_id, ...
+  📋 sales: stor_id, ord_num, date
+  ...
+
+======================================================================
+  PRELOADING IDs (eliminating ORDER BY NEWID() scans)
+======================================================================
+  ✓ Loaded 6 store IDs
+  ✓ Loaded 18 title IDs
+  ✓ Loaded 16 roysched title IDs
 ======================================================================
 
 ======================================================================
-  WORKLOAD RESULTS
+  HAMMERDB-STYLE WORKLOAD TEST (v2.0)
 ======================================================================
-  Total Time:     60.12s
-  Total TX:       3,245
-  Total Errors:   12
-  Overall TPS:    53.98
+  Workers:       10
+  Warmup Period: 30s (cache warming, not measured)
+  Test Duration: 60s (measured)
+  Total Runtime: 90s
+======================================================================
+
+  🚀 Starting 10 worker processes...
+  ⏳ Warmup phase: 30s (warming cache, not measured)...
+
+  ⏱️  Warmup complete (30s). Starting measurement...
+
+======================================================================
+  WORKLOAD RESULTS (Measurement Period Only)
+======================================================================
+  Measurement Time: 60.04s
+  Total TX:         4,832
+  Total Errors:     8
+  Overall TPS:      80.48
 
 ----------------------------------------------------------------------
   Transaction Type        Count   Errors    Avg(ms)        TPS
 ----------------------------------------------------------------------
-  new_sale                1,461        2     234.50      24.31
-  payment                   487        0     206.12       8.10
-  order_status              486        0      37.45       8.08
-  delivery                  324        0      74.23       5.39
-  stock_level               325        8     366.89       5.41
-  author_lookup              97        0     147.67       1.61
-  publisher_report           65        2     221.34       1.08
+  author_lookup             145        0      89.23       2.41
+  delivery                  483        0      52.34       8.04
+  new_sale                2,174        2     187.45      36.21
+  order_status              726        0      28.67      12.09
+  payment                   726        0     156.78      12.09
+  publisher_report           96        6     245.12       1.60
+  stock_level               482        0     298.34       8.03
 ======================================================================
 ```
 
@@ -134,16 +190,33 @@ python sybase_ase_hammerdb_workload.py --config configuration.json --verbose
 ## Metrics Explained
 
 ### Overall Metrics
-- **Total Time**: Actual elapsed time (may exceed duration due to cleanup)
-- **Total TX**: Total transactions executed across all workers
+- **Measurement Time**: Time spent in measurement phase (excludes warmup)
+- **Total TX**: Total transactions executed during measurement period
 - **Total Errors**: Failed transactions (rollbacks, exceptions)
-- **Overall TPS**: Transactions per second (total_tx / total_time)
+- **Overall TPS**: Transactions per second (total_tx / measurement_time)
 
 ### Per-Transaction Metrics
 - **Count**: Number of times this transaction type was executed
 - **Errors**: Number of failures for this transaction type
 - **Avg(ms)**: Average response time in milliseconds
 - **TPS**: Transactions per second for this specific type
+
+### Understanding the Warmup Period
+
+The warmup period is **critical** for accurate benchmarking:
+
+1. **During Warmup (first 30s by default)**:
+   - Workers execute transactions normally
+   - Database caches warm up (data pages, query plans, etc.)
+   - Disk I/O stabilizes
+   - Metrics are **NOT recorded**
+
+2. **During Measurement (next 60s by default)**:
+   - All transactions are recorded
+   - Reflects steady-state performance
+   - Comparable to HammerDB methodology
+
+**Why this matters**: Without warmup, your first transactions measure cold cache performance (disk I/O) rather than true transaction throughput.
 
 ---
 
@@ -169,14 +242,20 @@ The script uses the same `configuration.json` as the connector:
 
 ### Increase Concurrency
 ```bash
-# Test with 50 concurrent workers
+# Test with 50 concurrent workers (processes, not threads)
 python sybase_ase_hammerdb_workload.py --config configuration.json --workers 50 --duration 120
 ```
 
-### Longer Duration
+### Longer Duration & Warmup
 ```bash
-# Run for 10 minutes to test sustained load
-python sybase_ase_hammerdb_workload.py --config configuration.json --duration 600
+# Run for 10 minutes with 2 minute warmup (recommended for production benchmarks)
+python sybase_ase_hammerdb_workload.py --config configuration.json --duration 600 --warmup 120
+```
+
+### Quick Test (Skip Warmup)
+```bash
+# For development/debugging only - not representative of real performance
+python sybase_ase_hammerdb_workload.py --config configuration.json --warmup 0 --duration 30
 ```
 
 ### Adjust Transaction Mix
@@ -258,14 +337,22 @@ export TDSDUMPCONFIG=/tmp/freetds_config.log
 
 This workload is inspired by **HammerDB's TPC-C benchmark** but adapted for pubs2:
 
-| Feature | HammerDB TPC-C | This Workload |
-|---------|----------------|---------------|
+| Feature | HammerDB TPC-C | This Workload (v2.0) |
+|---------|----------------|----------------------|
 | Schema | Warehouse/Orders | Bookstore (pubs2) |
-| Workers | Configurable | Configurable  |
+| Workers | Configurable | Configurable (multiprocessing)  |
+| Warmup Period | Yes (rampup) | Yes (configurable, default 30s)  |
 | Transaction Mix | 5 types (New Order, Payment, etc.) | 7 types (adapted)  |
+| Random Selection | Weighted random | Pre-loaded IDs (no table scans)  |
 | Metrics | TPS, latency, errors | TPS, latency, errors  |
 | Language | TCL | Python  |
 | Database Support | Multiple | Sybase ASE (FreeTDS)  |
+
+**Key Alignment with HammerDB**:
+- ✅ Warmup period before measurement
+- ✅ True parallel execution (multiprocessing)
+- ✅ No full table scans during transactions
+- ✅ Measures steady-state throughput, not cold cache performance
 
 ---
 
@@ -313,12 +400,14 @@ python sybase_ase_hammerdb_workload.py --config configuration.json --workers 50
 
 ## Best Practices
 
-1. **Start Small**: Begin with 5-10 workers, then scale up
-2. **Monitor Sybase**: Use `sp_sysmon` or `sp_who` during tests
-3. **Clean Data**: Reset pubs2 database between major test runs
-4. **Network Proximity**: Run from same region as Sybase server
-5. **Realistic Duration**: Use 5-10 minute tests for accurate metrics
-6. **Document Results**: Save output for comparison over time
+1. **Always Use Warmup**: Default 30s minimum; use 60-120s for production benchmarks
+2. **Start Small**: Begin with 5-10 workers, then scale up
+3. **Monitor Sybase**: Use `sp_sysmon` or `sp_who` during tests
+4. **Clean Data**: Reset pubs2 database between major test runs
+5. **Network Proximity**: Run from same region as Sybase server
+6. **Realistic Duration**: Use 5-10 minute measurement periods for accurate metrics
+7. **Document Results**: Save output for comparison over time
+8. **Understand the Metrics**: Warmup TPS ≠ Measurement TPS (warmup includes cold cache)
 
 ---
 
@@ -329,23 +418,32 @@ python sybase_ase_hammerdb_workload.py --config configuration.json --workers 50
 │                    Main Process                              │
 │  - Load config                                               │
 │  - Discover schema                                           │
-│  - Create WorkloadStats (thread-safe)                        │
-│  - Spawn worker threads                                      │
+│  - Preload IDs (eliminate ORDER BY NEWID() scans)           │
+│  - Create WorkloadStats (process-safe with Manager)         │
+│  - Spawn worker PROCESSES (not threads)                     │
 └─────────────────────────────────────────────────────────────┘
                            │
         ┌──────────────────┼──────────────────┐
         │                  │                  │
    ┌────▼────┐       ┌────▼────┐       ┌────▼────┐
-   │ Worker 1│       │ Worker 2│  ...  │ Worker N│
+   │Process 1│       │Process 2│  ...  │Process N│
+   │ (PID 1) │       │ (PID 2) │       │ (PID N) │
    │         │       │         │       │         │
-   │ Loop:   │       │ Loop:   │       │ Loop:   │
+   │ Warmup: │       │ Warmup: │       │ Warmup: │
+   │ - Run TX│       │ - Run TX│       │ - Run TX│
+   │ - Don't │       │ - Don't │       │ - Don't │
+   │   record│       │   record│       │   record│
+   │         │       │         │       │         │
+   │ Measure:│       │ Measure:│       │ Measure:│
    │ - Pick  │       │ - Pick  │       │ - Pick  │
    │   random│       │   random│       │   random│
    │   TX    │       │   TX    │       │   TX    │
+   │ - Use   │       │ - Use   │       │ - Use   │
+   │   cached│       │   cached│       │   cached│
+   │   IDs   │       │   IDs   │       │   IDs   │
    │ - Execute│      │ - Execute│      │ - Execute│
    │ - Record│       │ - Record│       │ - Record│
    │   stats │       │   stats │       │   stats │
-   │ - Sleep │       │ - Sleep │       │ - Sleep │
    └────┬────┘       └────┬────┘       └────┬────┘
         │                  │                  │
         └──────────────────┼──────────────────┘
@@ -356,6 +454,12 @@ python sybase_ase_hammerdb_workload.py --config configuration.json --workers 50
                     │   (pubs2)   │
                     └─────────────┘
 ```
+
+**Key Architectural Improvements (v2.0)**:
+- **Multiprocessing**: Each worker is a separate OS process with its own Python interpreter (bypasses GIL)
+- **Shared State**: Uses `multiprocessing.Manager` for process-safe statistics collection
+- **ID Caching**: Pre-loads all IDs once at startup, shared across all processes
+- **Two-Phase Execution**: Warmup phase (cache warming) + Measurement phase (recorded metrics)
 
 ---
 
@@ -407,6 +511,22 @@ For issues or questions:
 
 ---
 
-**Version:** 1.0  
+**Version:** 2.0  
 **Author:** Nao Labs  
 **Last Updated:** 2026-03-11
+
+## Changelog
+
+### v2.0 (2026-03-11)
+- **Breaking**: Switched from threading to multiprocessing (true parallelism)
+- **New**: Added warmup period (default 30s) before measurement
+- **New**: Pre-load IDs to eliminate `ORDER BY NEWID()` full table scans
+- **Improved**: Metrics now reflect steady-state performance, not cold cache
+- **Improved**: Process-safe statistics collection with `multiprocessing.Manager`
+- **New**: `--warmup` CLI argument to configure warmup duration
+
+### v1.0 (Initial Release)
+- Multi-threaded workload generator
+- 7 transaction types (TPC-C inspired)
+- Schema discovery
+- Performance metrics (TPS, latency, errors)

@@ -24,9 +24,10 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Test files
+# Test files (exclude load test)
 test_*.py
 *_test.py
+!sybase_ase_load_test.py
 
 # Backup files
 *_backup.py

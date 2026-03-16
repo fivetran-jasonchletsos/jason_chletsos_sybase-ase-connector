@@ -2,36 +2,59 @@
 """
 Sybase ASE Load Test Script
 Generates realistic workload on Sybase ASE database for testing Fivetran connector performance.
+
+Configuration:
+    Reads database connection settings from configuration.json in the same directory.
+    
+Note:
+    If you encounter "transaction log is full" errors, the Sybase ASE database needs
+    transaction log maintenance. Contact your DBA to truncate or expand the transaction log.
 """
 
 import pyodbc
 import random
 import time
+import json
+import os
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-# Database connection parameters
-DB_CONFIG = {
-    'server': '35.223.102.32',
-    'port': '5000',
-    'database': 'pubs2',
-    'username': 'sa',
-    'password': 'Sybase001'
-}
+def load_config():
+    """Load database configuration from configuration.json"""
+    config_path = os.path.join(os.path.dirname(__file__), 'configuration.json')
+    
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(
+            f"Configuration file not found: {config_path}\n"
+            "Please ensure configuration.json exists in the same directory."
+        )
+    
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+    
+    required_fields = ['server', 'port', 'database', 'user_id', 'password']
+    missing_fields = [field for field in required_fields if field not in config]
+    
+    if missing_fields:
+        raise ValueError(f"Missing required fields in configuration.json: {missing_fields}")
+    
+    return config
 
-def get_connection():
-    """Create and return a database connection"""
+def get_connection(autocommit=True):
+    """Create and return a database connection using configuration.json"""
+    config = load_config()
+    
     conn_str = (
         f"DRIVER=FreeTDS;"
-        f"SERVER={DB_CONFIG['server']};"
-        f"PORT={DB_CONFIG['port']};"
-        f"DATABASE={DB_CONFIG['database']};"
-        f"UID={DB_CONFIG['username']};"
-        f"PWD={DB_CONFIG['password']};"
+        f"SERVER={config['server']};"
+        f"PORT={config['port']};"
+        f"DATABASE={config['database']};"
+        f"UID={config['user_id']};"
+        f"PWD={config['password']};"
         f"TDS_Version=5.0;"
         f"LoginTimeout=30;"
     )
-    return pyodbc.connect(conn_str, autocommit=False)
+    return pyodbc.connect(conn_str, autocommit=autocommit)
 
 def insert_sales(conn, num_records=100):
     """Insert random sales records"""
@@ -63,7 +86,6 @@ def insert_sales(conn, num_records=100):
         except Exception as e:
             print(f"⚠️  Insert failed: {e}")
     
-    conn.commit()
     return inserted
 
 def insert_salesdetail(conn, num_records=100):
@@ -98,7 +120,6 @@ def insert_salesdetail(conn, num_records=100):
         except Exception as e:
             print(f"⚠️  Insert failed: {e}")
     
-    conn.commit()
     return inserted
 
 def update_titles(conn, num_updates=50):
@@ -126,7 +147,6 @@ def update_titles(conn, num_updates=50):
         except Exception as e:
             print(f"⚠️  Update failed: {e}")
     
-    conn.commit()
     return updated
 
 def delete_old_sales(conn, days_old=365):
@@ -140,11 +160,9 @@ def delete_old_sales(conn, days_old=365):
             (cutoff_date,)
         )
         deleted = cursor.rowcount
-        conn.commit()
         return deleted
     except Exception as e:
         print(f"⚠️  Delete failed: {e}")
-        conn.rollback()
         return 0
 
 def run_load_test(duration_minutes=5, operations_per_cycle=10):
@@ -155,12 +173,14 @@ def run_load_test(duration_minutes=5, operations_per_cycle=10):
         duration_minutes: How long to run the test
         operations_per_cycle: Number of operations per cycle
     """
+    config = load_config()
+    
     print("=" * 60)
     print("Sybase ASE Load Test")
     print("=" * 60)
     print(f"Duration: {duration_minutes} minutes")
     print(f"Operations per cycle: {operations_per_cycle}")
-    print(f"Target: {DB_CONFIG['server']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}")
+    print(f"Target: {config['server']}:{config['port']}/{config['database']}")
     print("=" * 60)
     
     start_time = time.time()
@@ -231,11 +251,13 @@ def run_readonly_test(duration_minutes=5):
     Args:
         duration_minutes: How long to run the test
     """
+    config = load_config()
+    
     print("=" * 60)
     print("Sybase ASE Read-Only Load Test")
     print("=" * 60)
     print(f"Duration: {duration_minutes} minutes")
-    print(f"Target: {DB_CONFIG['server']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}")
+    print(f"Target: {config['server']}:{config['port']}/{config['database']}")
     print("=" * 60)
     
     queries = [

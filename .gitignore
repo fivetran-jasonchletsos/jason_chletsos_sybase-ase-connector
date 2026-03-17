@@ -1,3 +1,6 @@
+# Configuration files with credentials
+configuration.json
+
 # Python
 __pycache__/
 *.py[cod]

@@ -1,7 +1,9 @@
 # Sybase ASE Connector and Load Testing Tools
 
 This repository contains a Fivetran Connector SDK implementation for Sybase ASE and a suite of load testing tools for benchmarking and validating database performance against the pubs2 database.
-
+It was based off the original Sybase ASE custom connector but with 2 changes:
+1. Updated connection string with UTF-8 parameter - Kirk Van Arkel
+2. Previously was hardcoded to use just the Sales tables in Pubs2 database, now you can select the tables in the schema you would like to sync - Jason Chletsos
 ## Repository Contents
 
 | File | Description |
